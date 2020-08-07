@@ -1,0 +1,2 @@
+include ':app', ':build-channels-by-metainf', ':build-channels-by-fc'
+rootProject.name='AppChannelFlavor'

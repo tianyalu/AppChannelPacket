@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/tv_channel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:layout_marginTop="24dp"
+        android:text="当前渠道："/>
+
+    <Button
+        android:id="@+id/btn_get_channel_by_flavor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="通过 Flavor 获取渠道信息"
+        android:textAllCaps="false"
+        android:layout_marginTop="24dp"/>
+
+    <Button
+        android:id="@+id/btn_get_channel_by_metainf"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="通过 META_INF 获取渠道信息"
+        android:textAllCaps="false"
+        android:layout_marginTop="24dp"/>
+
+    <Button
+        android:id="@+id/btn_get_channel_by_fc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="通过 Comment 获取渠道信息"
+        android:textAllCaps="false"
+        android:layout_marginTop="24dp"/>
+
+</LinearLayout>
