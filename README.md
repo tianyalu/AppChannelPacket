@@ -64,6 +64,8 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 ![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_block.png)
 
+
+
 受保护的内容：
 
 ![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_protected_area.png)
@@ -93,7 +95,11 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 > 2. 在签名块中添加包含渠道信息的`ID-Value`；
 > 3. 拷贝原`APK`，并修改签名块数据生成带有渠道信息的`APK`。
 
+
+
 ![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_blockdata.png)
+
+
 
 #### 1.5.2 方案落地
 
@@ -115,7 +121,7 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 > 3. 第三部分同样无需修改；
 > 4. 第四部分修改第16个字节开始后四个字节再写入`APK`(因为插入了渠道信息，导致核心目录偏移量改变了)。
 
-**注：**第四部分修改的内容不会影响签名校验。
+**注：** 第四部分修改的内容不会影响签名校验。
 
 ### 1.6 题外话
 
