@@ -1,6 +1,6 @@
 
 
-# Android`多渠道包生成实践
+# `Android`多渠道包生成实践
 
 [TOC]
 
@@ -23,7 +23,7 @@
 
  `apk`打包流程如下图所示：
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/apk_pack_process.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/apk_pack_process.png)
 
 ### 1.4 `apk`签名
 
@@ -47,7 +47,7 @@
 
 V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录下的文件进行校验，可以利用这一特性，在`apk`的`META-INF`目录下新建一个包含渠道名称或id的空文件，`apk`启动时，读取该文件来获取渠道号，从而达到区分各个渠道包的作用。
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/apk_file_content.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/apk_file_content.png)
 
 #### 1.4.2 `V2/V3`签名
 
@@ -58,15 +58,15 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 参考：[https://source.android.google.cn/security/apksigning](https://source.android.google.cn/security/apksigning)
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/v2_v3_signing_structure.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_v3_signing_structure.png)
 
 签名分块数据如下图所示：
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/v2_signing_block.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_block.png)
 
 受保护的内容：
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/v2_signing_protected_area.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_protected_area.png)
 
 #### 1.4.3 `V1`和`V2/V3`区别
 
@@ -81,7 +81,7 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 系统安装`APK`时签名验证过程如下图所示：
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/signature_validate_sequence.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/signature_validate_sequence.png)
 
 验证程序会对照存储在“`APK`签名分块”中的`V2+`签名对`APK`的全文件哈希进行验证。该哈希涵盖除“`APK`签名分块”（其中包含`V2+`签名）之外的所有内容。在“`APK`签名分块”以外对`APK`进行的修改都会使`APK`的`V2+`签名作废。`V2+`签名被删除的`APK`也会被拒绝，因为`V1`签名指明相应`APK`带有`V2`签名，所以`Android 7.0`及更高版本会拒绝使用`V1`签名验证`APK`。
 
@@ -93,7 +93,7 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 > 2. 在签名块中添加包含渠道信息的`ID-Value`；
 > 3. 拷贝原`APK`，并修改签名块数据生成带有渠道信息的`APK`。
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/v2_signing_blockdata.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_blockdata.png)
 
 #### 1.5.2 方案落地
 
@@ -104,7 +104,7 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 `EOCD`格式（`End of Central Directory`）中的偏移量16描述了核心目录（即第三块`Central Directory`）相对于整个`zip`压缩文件的偏移量`offset`，下图中右侧内容表示第二块`APK Signing Block`，则从`offset`向左读取16个字节便得到了魔数`magic`（可以通过 [`010Editor`]( https://www.sweetscape.com/download/010editor/) 查看文件的数据格式`magic`），然后判断这个`magic`和 [ApkSigningBlockUtils.java](https://www.androidos.net.cn/android/9.0.0_r8/xref//tools/apksig/src/main/java/com/android/apksig/internal/apk/ApkSigningBlockUtils.java) 中的 `APK_SIGNING_BLOCK_BYTES` 的16个字节是否相同，如果相同，则表明使用了`V2/V3`签名。
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/eocd.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/eocd.png)
 
 从`magic`的位置再向左读取8个字节可以得到`size of block`，即第二块`APK Signing Block`的总长度，此时可以将第二块的数据抽离出来，然后按照原来的格式添加自己的渠道`ID-Value`信息。
 
@@ -123,7 +123,7 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 资源混淆如何实现？
 
-![image](https://github.com/tianyalu/AppChannelFlavor/raw/master/show/mix_resource_file.png)
+![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/mix_resource_file.png)
 
 #### 1.6.2 高性能日志设计
 
