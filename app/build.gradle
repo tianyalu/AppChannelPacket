@@ -18,7 +18,7 @@ android {
             keyAlias "my_keystore"
             keyPassword "123456"
             v1SigningEnabled true
-            v2SigningEnabled false
+            v2SigningEnabled true
         }
         debug {
             storeFile file("../my_keystore.jks")
@@ -61,4 +61,5 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation project(path: ':build-channels-by-metainf')
     implementation project(path: ':build-channels-by-fc')
+    implementation project(path: ':build-channels-adapt-v2')
 }

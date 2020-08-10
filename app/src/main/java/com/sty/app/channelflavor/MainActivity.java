@@ -18,6 +18,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnGetChannelByFlavor;
     private Button btnGetChannelByMetaInf;
     private Button btnGetChannelByFc;
+    private Button btnGetChannelByIdValue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
         btnGetChannelByFlavor = findViewById(R.id.btn_get_channel_by_flavor);
         btnGetChannelByMetaInf = findViewById(R.id.btn_get_channel_by_metainf);
         btnGetChannelByFc = findViewById(R.id.btn_get_channel_by_fc);
+        btnGetChannelByIdValue = findViewById(R.id.btn_get_channel_by_id_value);
 
         btnGetChannelByFlavor.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -50,6 +52,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String channelName = ChannelHelper.getChannelByFC(MainActivity.this);
+                showChannel(channelName);
+            }
+        });
+        btnGetChannelByIdValue.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String channelName = ChannelHelper.getChannelByIdValue(MainActivity.this);
                 showChannel(channelName);
             }
         });

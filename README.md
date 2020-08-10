@@ -51,6 +51,8 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 #### 1.4.2 `V2/V3`签名
 
+`V2`签名也称`Full APK signature`，它是第一个对全文件进行签名的方案，能提供更快的应用安装时间、对未授权`APK`文件的更改提供保护。
+
 > * `V2`签名：`Android 7.0`及更高版本设备支持；
 > * `V3`签名：`Android 9.0`及更高版本设备支持。
 
@@ -64,11 +66,28 @@ V1 签名：保护**现有**的文件。但是校验时不会对`META-INF`目录
 
 ![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_block.png)
 
+我们注意到`ID-value`，它是由一个 8字节的长度标识 + 4字节的`ID` + 它的负载 组成。`V2`的签名信息时以固定的`ID`值（`0x7109871a`）的`ID-value`来保存在这个区块中，也就是说它可以有若干个这样的`ID-value`来组成：
 
+| `Length` | `ID`         | `Data`       |
+| -------- | ------------ | ------------ |
+| ...      | ...          | ...          |
+| 签名长度 | `0x7109871a` | 安卓签名信息 |
+| ...      | ...          | ...          |
 
 受保护的内容：
 
 ![image](https://github.com/tianyalu/AppChannelPacket/raw/master/show/v2_signing_protected_area.png)
+
+另外签名校验时会忽略除了`Android`签名信息外的其它`ID-value`的，所以可以把渠道信息添加到`ID-value`中，实现生成多渠道包了。
+
+另外需要注意的是`APK Signing Block`是使用小端模式来保存字节的，我们使用的时候也必须使用小端模式：
+
+> 小端模式：数据的高字节保存在内存的高地址中，二数据的低字节保存在内存的低地址中。这种存储模式将地址的高低和数据位权有效地结合起来，高地址部分权值高，低地址权值低。
+>
+> 也就是说，如`0x1234`用小端模式保存的话就是：
+> byte[0] = 0x34 --> 低字节保存在低地址；
+> byte[1] = 0x12 --> 高字节保存在高地址。
+
 
 #### 1.4.3 `V1`和`V2/V3`区别
 
@@ -523,7 +542,206 @@ private static void copyApkFile(InputStream in, OutputStream out) throws IOExcep
 
 注意，上面的实例没有考虑Apk原本存在注释的情况，如果要考虑的话，可以根据`EOCD的`开始标记，值是固定为 `0x06054b50`，找到这个标记，再相对偏移20的字节就是 `Comment Length`，这样就能知道原有注释的长度了。
 
+#### 2.4 针对`Android7.0`新增的`V2`签名方案的`APK`添加渠道`ID-value`
 
+该方案的思路主要分为两步：首先需要找到`APK Signing Block`数据块，然后对`ID-value`进行扩展，写入包含渠道信息的`ID-value`。详情可参考`1.5.2 方案落地`。
+
+#### 2.4.1 寻找`APK Signing Block`数据块
+
+由`1.5.2`可知，`APK Signing Block`是在紧接着`Contents of ZIP entries`之后，在`Central Directory`之前，通过`Zip`的 `End of central directory record(EOCD)`可以知道`Central Directory`的具体位置，即`Offset of start of central directory relative to start of archive`存储的4个字节，而`Central Directory`是紧跟着`APK signing Block`的，所以可以通过`Central Directory`找到签名块的具体位置：
+
+```java
+public static long findCentralDirStartOffset(final FileChannel fileChannel, final long commentLength) throws IOException {
+  // End of central directory record (EOCD)
+  // Offset    Bytes     Description[23]
+  // 0           4       End of central directory signature = 0x06054b50
+  // 4           2       Number of this disk
+  // 6           2       Disk where central directory starts
+  // 8           2       Number of central directory records on this disk
+  // 10          2       Total number of central directory records
+  // 12          4       Size of central directory (bytes)
+  // 16          4       Offset of start of central directory, relative to start of archive
+  // 20          2       Comment length (n)
+  // 22          n       Comment
+  // For a zip with no archive comment, the
+  // end-of-central-directory record will be 22 bytes long, so
+  // we expect to find the EOCD marker 22 bytes from the end.
+
+  final ByteBuffer zipCentralDirectoryStart = ByteBuffer.allocate(4);
+  zipCentralDirectoryStart.order(ByteOrder.LITTLE_ENDIAN);
+  fileChannel.position(fileChannel.size() - commentLength - 6); // 6 = 2 (Comment length) + 4 (Offset of start of central directory, relative to start of archive)
+  fileChannel.read(zipCentralDirectoryStart);
+  final long centralDirStartOffset = zipCentralDirectoryStart.getInt(0);
+  return centralDirStartOffset;
+}
+```
+
+再根据`Central Directory`的位置，向上读`APK Signing Block`:
+
+```java
+public static Pair<ByteBuffer, Long> findApkSigningBlock(
+  final FileChannel fileChannel, final long centralDirOffset) throws IOException, SignatureNotFoundException {
+
+  // Find the APK Signing Block. The block immediately precedes the Central Directory.
+
+  // FORMAT:
+  // OFFSET       DATA TYPE  DESCRIPTION
+  // * @+0  bytes uint64:    size in bytes (excluding this field)
+  // * @+8  bytes payload
+  // * @-24 bytes uint64:    size in bytes (same as the one above)
+  // * @-16 bytes uint128:   magic
+
+  if (centralDirOffset < APK_SIG_BLOCK_MIN_SIZE) {
+    throw new SignatureNotFoundException(
+      "APK too small for APK Signing Block. ZIP Central Directory offset: "
+      + centralDirOffset);
+  }
+  // Read the magic and offset in file from the footer section of the block:
+  // * uint64:   size of block
+  // * 16 bytes: magic
+  fileChannel.position(centralDirOffset - 24);
+  final ByteBuffer footer = ByteBuffer.allocate(24);
+  fileChannel.read(footer);
+  footer.order(ByteOrder.LITTLE_ENDIAN); // 小端模式，高字节保存在高地址
+  // 是否存在V2签名魔数：APK Sig Block 42
+  if ((footer.getLong(8) != APK_SIG_BLOCK_MAGIC_LO)
+      || (footer.getLong(16) != APK_SIG_BLOCK_MAGIC_HI)) {
+    throw new SignatureNotFoundException(
+      "No APK Signing Block before ZIP Central Directory");
+  }
+  // Read and compare size fields
+  final long apkSigBlockSizeInFooter = footer.getLong(0); // 签名块的总长度
+  if ((apkSigBlockSizeInFooter < footer.capacity())
+      || (apkSigBlockSizeInFooter > Integer.MAX_VALUE - 8)) {
+    throw new SignatureNotFoundException(
+      "APK Signing Block size out of range: " + apkSigBlockSizeInFooter);
+  }
+  final int totalSize = (int) (apkSigBlockSizeInFooter + 8); // + 8 （签名块第一个Block长度字节数）
+  final long apkSigBlockOffset = centralDirOffset - totalSize;
+  if (apkSigBlockOffset < 0) {
+    throw new SignatureNotFoundException(
+      "APK Signing Block offset out of range: " + apkSigBlockOffset);
+  }
+  fileChannel.position(apkSigBlockOffset);
+  final ByteBuffer apkSigBlock = ByteBuffer.allocate(totalSize);
+  fileChannel.read(apkSigBlock);
+  apkSigBlock.order(ByteOrder.LITTLE_ENDIAN);
+  final long apkSigBlockSizeInHeader = apkSigBlock.getLong(0);
+  if (apkSigBlockSizeInHeader != apkSigBlockSizeInFooter) { // 再检验一次，真严格！
+    throw new SignatureNotFoundException(
+      "APK Signing Block sizes in header and footer do not match: "
+      + apkSigBlockSizeInHeader + " vs " + apkSigBlockSizeInFooter);
+  }
+  return Pair.of(apkSigBlock, apkSigBlockOffset);
+}
+```
+
+#### 2.4.2 对`ID-value`进行扩展，写入包含渠道信息的`ID-value`
+
+先拿出原来`APK`已存在的`ID-value`，然后把我们自己的渠道信息保存在新的`ID-vlaue`中，再把新的旧的`ID-value`一起写入`APK`：
+
+```java
+public static void writeApkSigningBlock(final File apkFile, final Map<Integer, ByteBuffer> idValues) throws IOException, SignatureNotFoundException {
+  RandomAccessFile fIn = null;
+  FileChannel fileChannel = null;
+
+  try {
+    fIn = new RandomAccessFile(apkFile, "rw");
+    fileChannel = fIn.getChannel();
+    //获取注释长度
+    final  long commentLength = ApkUtil.getCommentLength(fileChannel);
+    //获取核心目录偏移
+    final long centralDirStartOffset = ApkUtil.findCentralDirStartOffset(fileChannel, commentLength);
+    final Pair<ByteBuffer, Long> apkSigningBlockAndOffset
+      = ApkUtil.findApkSigningBlock(fileChannel, centralDirStartOffset); //获取签名块
+    final ByteBuffer oldApkSigningBlock = apkSigningBlockAndOffset.getmFirst();
+    final long apkSigningBlockOffset = apkSigningBlockAndOffset.getmSecond();
+
+    //获取apk已有的ID-value
+    final Map<Integer, ByteBuffer> originIdValues = ApkUtil.findIdValues(oldApkSigningBlock);
+    //查找apk的签名信息，ID值固定为：0x7109871a
+    final ByteBuffer apkSignatureSchemeV2Block = originIdValues.get(ApkUtil.APK_SIGNATURE_SCHEME_V2_BLOCK_ID);
+    if(apkSignatureSchemeV2Block == null) {
+      throw new IOException("No APK Signature Scheme v2 block in APK Signing Block");
+    }
+
+    //获取所有 ID-value
+    final ApkSigningBlock apkSigningBlock = genApkSigningBlock(idValues, originIdValues);
+
+    if(apkSigningBlockOffset != 0 && centralDirStartOffset != 0) {
+      //读取核心目录的内容
+      fIn.seek(centralDirStartOffset);
+      byte[] centralDirBytes;
+      centralDirBytes = new byte[(int) (fileChannel.size() - centralDirStartOffset)];
+      fIn.read(centralDirBytes);
+
+      //更新签名块
+      fileChannel.position(apkSigningBlockOffset);
+      //写入新的签名块，返回的长度是不包含签名块头部的 Size of block (8字节)
+      final long lengthExcludeHSOB = apkSigningBlock.writeApkSigningBlock(fIn);
+
+      //更新核心目录
+      fIn.write(centralDirBytes);
+
+      //更新文件的总长度
+      fIn.setLength(fIn.getFilePointer());
+
+      // 更新 EOCD 所记录的核心目录的偏移
+      // End of central directory record (EOCD)
+      // Offset     Bytes     Description[23]
+      // 0            4       End of central directory signature = 0x06054b50
+      // 4            2       Number of this disk
+      // 6            2       Disk where central directory starts
+      // 8            2       Number of central directory records on this disk
+      // 10           2       Total number of central directory records
+      // 12           4       Size of central directory (bytes)
+      // 16           4       Offset of start of central directory, relative to start of archive
+      // 20           2       Comment length (n)
+      // 22           n       Comment
+
+      fIn.seek(fileChannel.size() - commentLength - 6);
+      // 6 = 2(Comment length) + 4(Offset of start of central directory, relative to start of archive)
+      final ByteBuffer temp = ByteBuffer.allocate(4);
+      temp.order(ByteOrder.LITTLE_ENDIAN);
+      long oldSignBlockLength = centralDirStartOffset - apkSigningBlockOffset; //旧签名块字节数
+      long newSignBlockLength = lengthExcludeHSOB + 8; //新签名块字节数，8 = size of block in bytes (excluding this field) (uint64)
+      long extraLength = newSignBlockLength - oldSignBlockLength;
+      temp.putInt((int) (centralDirStartOffset + extraLength));
+      temp.flip();
+      fIn.write(temp.array());
+
+    }
+  } finally {
+    IOUtils.closeQuietly(fileChannel);
+    IOUtils.closeQuietly(fIn);
+  }
+}
+
+private static ApkSigningBlock genApkSigningBlock(Map<Integer, ByteBuffer> idValues,
+                                                  Map<Integer, ByteBuffer> originIdValues) {
+  //把已有的和新增的 ID-value 添加到 payload 列表
+  if(idValues != null && !idValues.isEmpty()) {
+    originIdValues.putAll(idValues);
+  }
+  final ApkSigningBlock apkSigningBlock = new ApkSigningBlock();
+  final Set<Map.Entry<Integer, ByteBuffer>> entrySet = originIdValues.entrySet();
+  for (Map.Entry<Integer, ByteBuffer> entry : entrySet) {
+    final ApkSigningPayload payload = new ApkSigningPayload(entry.getKey(), entry.getValue());
+    apkSigningBlock.addPayload(payload);
+  }
+  return apkSigningBlock;
+}
+```
+
+注意上面在写完`ID-value`后，因为`APK Signing Block`的长度变化了，相应的`APK`文件大小和`Central Directory`的偏移也会变化，需要同步更新。
+
+## 三、后记
+
+### 3.1 待完善
+
+本文没有判断签名是`V2/V3`签名还是`V1`签名，然后用相应的方式去读取渠道号，后续可完善一下。
+
+### 3.2 参考资料
 
 本文参考：
 

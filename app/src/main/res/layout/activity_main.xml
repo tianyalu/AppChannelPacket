@@ -39,4 +39,12 @@
         android:textAllCaps="false"
         android:layout_marginTop="24dp"/>
 
+    <Button
+        android:id="@+id/btn_get_channel_by_id_value"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="通过 V2签名 获取渠道信息"
+        android:textAllCaps="false"
+        android:layout_marginTop="24dp"/>
+
 </LinearLayout>
