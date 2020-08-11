@@ -14,6 +14,7 @@ public class ApkUtil {
     }
 
     /**
+     * 可以参考：https://www.androidos.net.cn/android/9.0.0_r8/xref//tools/apksig/src/main/java/com/android/apksig/internal/apk/ApkSigningBlockUtils.java
      * APK Signing Block Magic Code: magic “APK Sig Block 42” (16 bytes)
      * "APK Sig Block 42" : 41 50 4B 20 53 69 67 20 42 6C 6F 63 6B 20 34 32
      */
@@ -32,13 +33,14 @@ public class ApkUtil {
 
     public static final String DEFAULT_CHARSET = "UTF-8";
 
-    private static final int ZIP_EOCD_REC_MIN_SIZE = 22;
+    private static final int ZIP_EOCD_REC_MIN_SIZE = 22;  // 4 + 2 + 2 + 2 + 2 + 4 + 4 + 2
     private static final int ZIP_EOCD_REC_SIG = 0x06054b50; // EOCD开始签名标记，占4字节，值固定
     private static final int UINT16_MAX_VALUE = 0xffff;
     private static final int ZIP_EOCD_COMMENT_LENGTH_FIELD_OFFSET = 20;
 
     /**
-     * 获取注释的长度（注释是不定长的）
+     * 获取注释的长度（注释是不定长的） 参考：show/eocd.png
+     * 从后往前找EOCD开始签名标记，然后找到长度偏移量
      * @param fileChannel
      * @return
      * @throws IOException
@@ -69,7 +71,7 @@ public class ApkUtil {
         final long eocdWithEmptyCommentStartPosition = archiveSize - ZIP_EOCD_REC_MIN_SIZE;
         for (int expectedCommentLength = 0; expectedCommentLength <= maxCommentLength;
              expectedCommentLength++) {
-            final long eocdStartPos = eocdWithEmptyCommentStartPosition - expectedCommentLength;
+            final long eocdStartPos = eocdWithEmptyCommentStartPosition - expectedCommentLength; //从后往前找EOCD开始签名标记
 
             final ByteBuffer byteBuffer = ByteBuffer.allocate(4);
             fileChannel.position(eocdStartPos);
@@ -97,6 +99,13 @@ public class ApkUtil {
         return findCentralDirStartOffset(fileChannel, getCommentLength(fileChannel));
     }
 
+    /**
+     * 获取核心目录偏移量
+     * @param fileChannel
+     * @param commentLength
+     * @return
+     * @throws IOException
+     */
     public static long findCentralDirStartOffset(final FileChannel fileChannel, final long commentLength) throws IOException {
         // End of central directory record (EOCD)
         // Offset    Bytes     Description[23]
@@ -127,6 +136,14 @@ public class ApkUtil {
         return findApkSigningBlock(fileChannel, centralDirOffset);
     }
 
+    /**
+     * 获取签名块
+     * @param fileChannel
+     * @param centralDirOffset
+     * @return
+     * @throws IOException
+     * @throws SignatureNotFoundException
+     */
     public static Pair<ByteBuffer, Long> findApkSigningBlock(
             final FileChannel fileChannel, final long centralDirOffset) throws IOException, SignatureNotFoundException {
 
@@ -183,6 +200,7 @@ public class ApkUtil {
         return Pair.of(apkSigBlock, apkSigBlockOffset);
     }
 
+    // 参考：show/v2_signing_block.png
     public static Map<Integer, ByteBuffer> findIdValues(final ByteBuffer apkSigningBlock) throws SignatureNotFoundException {
         checkByteOrderLittleEndian(apkSigningBlock);
         // FORMAT:
@@ -202,7 +220,7 @@ public class ApkUtil {
                 throw new SignatureNotFoundException(
                         "Insufficient data to read size of APK Signing Block entry #" + entryCount);
             }
-            final long lenLong = pairs.getLong();
+            final long lenLong = pairs.getLong(); //完成后position会自增  带参数的方法执行后position不会自增
             if ((lenLong < 4) || (lenLong > Integer.MAX_VALUE)) {
                 throw new SignatureNotFoundException(
                         "APK Signing Block entry #" + entryCount

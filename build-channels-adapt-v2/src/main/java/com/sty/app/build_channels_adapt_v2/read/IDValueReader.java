@@ -4,7 +4,6 @@ import com.sty.app.build_channels_adapt_v2.ApkUtil;
 import com.sty.app.build_channels_adapt_v2.utils.IOUtils;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;

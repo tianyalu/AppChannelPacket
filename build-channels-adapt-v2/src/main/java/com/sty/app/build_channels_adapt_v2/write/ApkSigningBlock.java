@@ -48,6 +48,13 @@ public class ApkSigningBlock {
         payloads.add(payload);
     }
 
+
+    /**
+     * 参考：show/v2_signing_block.png
+      * @param dataOutput
+     * @return
+     * @throws IOException
+     */
     public long writeApkSigningBlock(final DataOutput dataOutput) throws IOException {
         long length = 24; // 24 = 8(size of block in bytes—same as the very first field (uint64)) + 16 (magic “APK Sig Block 42” (16 bytes))
         for (int index = 0; index < payloads.size(); ++index) {
@@ -56,7 +63,7 @@ public class ApkSigningBlock {
             length += 12 + bytes.length; // 12 = 8(uint64-length-prefixed) + 4 (ID (uint32))
         }
 
-        // Block total length
+        // Block total length(除此字段外总长度）
         ByteBuffer byteBuffer = ByteBuffer.allocate(8); // Long.BYTES
         byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
         byteBuffer.putLong(length);
@@ -70,7 +77,7 @@ public class ApkSigningBlock {
 
             byteBuffer = ByteBuffer.allocate(8); // Long.BYTES
             byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            byteBuffer.putLong(bytes.length + (8 - 4)); // Long.BYTES - Integer.BYTES
+            byteBuffer.putLong(bytes.length + (8 - 4)); // Long.BYTES - Integer.BYTES --> id-values pairs = value.length + id.length
             byteBuffer.flip();
             dataOutput.write(byteBuffer.array());
 
@@ -83,7 +90,7 @@ public class ApkSigningBlock {
             dataOutput.write(bytes);
         }
 
-        // Block total length
+        // Block total length（与第一个字段相同）
         byteBuffer = ByteBuffer.allocate(8); // Long.BYTES
         byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
         byteBuffer.putLong(length);

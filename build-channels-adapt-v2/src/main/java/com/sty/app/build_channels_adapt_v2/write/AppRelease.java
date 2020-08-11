@@ -4,10 +4,8 @@ import com.sty.app.build_channels_adapt_v2.ChannelProcessor;
 import com.sty.app.build_channels_adapt_v2.utils.FileUtils;
 import com.sty.app.build_channels_adapt_v2.utils.IOUtils;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,6 +63,12 @@ public class AppRelease {
         return ChannelProcessor.read(apkFile);
     }
 
+    /**
+     * 把输入流中的内容写到输出流
+     * @param in
+     * @param out
+     * @throws IOException
+     */
     private static void copyApkFile(InputStream in, OutputStream out) throws IOException {
         byte[] buffer = new byte[4 * 1024];
         int len;
